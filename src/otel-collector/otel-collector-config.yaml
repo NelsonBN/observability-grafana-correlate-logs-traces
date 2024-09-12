@@ -1,0 +1,31 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: :4317
+
+
+exporters:
+  debug:
+  otlp/tempo-traces:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    default_labels_enabled:
+      exporter: true
+      job: true
+    tls:
+      insecure: true
+
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/tempo-traces, debug]
+    logs:
+      receivers: [otlp]
+      exporters: [loki, debug]

@@ -1,0 +1,90 @@
+networks:
+  demo:
+    driver: bridge
+
+services:
+
+  # aspire:
+  #   image: mcr.microsoft.com/dotnet/aspire-dashboard:8.1.0-amd64
+  #   container_name: aspire-dashboard
+  #   restart: always
+  #   environment:
+  #     DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: true
+  #   ports:
+  #     - 18888:18888 # Web UI
+  #     - 4317:18889 # grpc OTLP
+  #   networks:
+  #     - demo
+
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    restart: always
+    command:
+      - -config.file=/etc/loki/loki-config.yaml
+      - -print-config-stderr=true
+    volumes:
+      - ./src/Loki:/etc/loki
+    networks:
+      - demo
+    healthcheck:
+      test:
+        [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready" ]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: tempo
+    restart: always
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./src/Tempo/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - 51317:4317  # otlp grpc
+    networks:
+      - demo
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.108.0
+    container_name: otel-collector
+    restart: always
+    command: --config=/etc/otel-collector-config.yaml
+    volumes:
+      - ./src/otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - 4317:4317   # OTLP gRPC receiver
+    networks:
+      - demo
+    depends_on:
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    environment:
+      TZ: Europe/Lisbon
+      GF_LOG_LEVEL: warn
+      GF_AUTH_DISABLE_LOGIN_FORM: true
+      GF_AUTH_ANONYMOUS_ENABLED: true # Allow anonymous access
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin # Set the role for anonymous users to Admin
+      GF_AUTH_BASIC_ENABLED: false # Disable basic auth
+      GF_INSTALL_PLUGINS: https://storage.googleapis.com/integration-artifacts/grafana-lokiexplore-app/grafana-lokiexplore-app-latest.zip;grafana-lokiexplore-app # Install Loki Explore plugin
+    ports:
+      - 3000:3000
+    volumes:
+      - ./src/Grafana/data-source.yml:/etc/grafana/provisioning/datasources/data-source.yml # Data source configurations
+      - ./src/Grafana/dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml # Dashboard configurations
+    networks:
+      - demo
+    depends_on:
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_healthy
