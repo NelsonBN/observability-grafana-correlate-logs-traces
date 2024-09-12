@@ -15,3 +15,4 @@ Instalation new Explore logs in Grafana
 
 - [GitHub Doc](https://github.com/grafana/explore-logs)
 - [Grafana Doc](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/logs/access/)
+- [YouTube Demo](https://www.youtube.com/watch?v=iH0Ufv2bD1U)
